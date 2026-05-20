@@ -122,6 +122,28 @@ app.include_router(products.router)
 app.include_router(cart.router)
 app.include_router(orders.router)
 
+@app.get("/db-debug")
+async def db_debug():
+    try:
+        from app.database import get_database
+        database = db.client.coffee_db
+        collections = await database.list_collection_names()
+        # Get MONGODB_URL from settings (masking credentials)
+        url = settings.MONGODB_URL
+        masked_url = url
+        if "@" in url:
+            parts = url.split("@")
+            masked_url = "mongodb+srv://***:***@" + parts[-1]
+        return {
+            "database_name": "coffee_db",
+            "collections": collections,
+            "masked_mongodb_url": masked_url,
+            "client_initialized": db.client is not None
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/")
 async def root():
     return {"message": "Welcome to the Coffee Website API. Go to /docs for the API documentation."}
+
