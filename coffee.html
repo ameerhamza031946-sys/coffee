@@ -973,83 +973,117 @@ textarea.form-control { min-height:130px; resize:vertical; }
 </div>
  
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* ═══════════════ DATA ═══════════════ */
-let products = JSON.parse(localStorage.getItem('bs_products') || 'null') || [
-  {id:1,name:'Espresso',emoji:'☕',cat:'Hot Coffee',price:3.50,stock:80,desc:'Rich, concentrated shot of pure coffee perfection'},
-  {id:2,name:'Cappuccino',emoji:'🫖',cat:'Hot Coffee',price:4.50,stock:60,desc:'Velvety microfoam atop a bold espresso base'},
-  {id:3,name:'Latte',emoji:'🥛',cat:'Hot Coffee',price:4.75,stock:55,desc:'Silky steamed milk with a gentle espresso touch'},
-  {id:4,name:'Americano',emoji:'☕',cat:'Hot Coffee',price:3.75,stock:70,desc:'Espresso diluted to cafe-length perfection'},
-  {id:5,name:'Cold Brew',emoji:'🧋',cat:'Cold Coffee',price:5.00,stock:40,desc:'18-hour slow steeped, smooth & chocolatey'},
-  {id:6,name:'Iced Latte',emoji:'🧊',cat:'Cold Coffee',price:5.25,stock:45,desc:'Chilled espresso with cold milk over ice'},
-  {id:7,name:'Frappuccino',emoji:'🥤',cat:'Cold Coffee',price:5.75,stock:30,desc:'Blended ice, espresso, milk and sweet syrup'},
-  {id:8,name:'Matcha Latte',emoji:'🍵',cat:'Cold Coffee',price:5.50,stock:8,desc:'Ceremonial grade matcha with oat milk'},
-  {id:9,name:'Croissant',emoji:'🥐',cat:'Desserts',price:3.25,stock:25,desc:'Flaky, buttery, freshly baked every morning'},
-  {id:10,name:'Tiramisu',emoji:'🍰',cat:'Desserts',price:6.00,stock:15,desc:'Classic Italian espresso-soaked dessert'},
-  {id:11,name:'Chocolate Cake',emoji:'🎂',cat:'Desserts',price:5.50,stock:3,desc:'Dense, moist, triple chocolate layer cake'},
-  {id:12,name:'Macaron',emoji:'🍭',cat:'Desserts',price:2.75,stock:0,desc:'Delicate French almond shell with ganache fill'},
-];
-let orders = JSON.parse(localStorage.getItem('bs_orders') || '[]');
+const API_URL = "https://coffee-zk6w.onrender.com";
+
+let products = [];
+let orders = [];
 let cart = [];
 let editingProductId = null;
 let currentMenuCat = 'All';
- 
-function saveProducts(){ localStorage.setItem('bs_products', JSON.stringify(products)); }
-function saveOrders(){ localStorage.setItem('bs_orders', JSON.stringify(orders)); }
-function nextId(){ return products.length ? Math.max(...products.map(p=>p.id))+1 : 1; }
- 
-/* ═══════════════ NAV ═══════════════ */
-function showPage(id){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('page-'+id).classList.add('active');
-  const nb=document.getElementById('nav-'+id);
-  if(nb) nb.classList.add('active');
-  if(id==='home') renderHome();
-  if(id==='menu') renderMenu();
-  if(id==='order') renderOrder();
-  if(id==='admin') renderAdmin();
-  window.scrollTo({top:0,behavior:'smooth'});
+let adminToken = localStorage.getItem('adminToken') || null;
+
+/* ═══════════════ DATA FETCHING ═══════════════ */
+async function fetchProducts() {
+  try {
+    const res = await fetch(`${API_URL}/products/`);
+    if (res.ok) {
+      products = await res.json();
+      renderHome();
+    }
+  } catch (err) {
+    console.error("Error fetching products:", err);
+  }
 }
- 
+
+async function fetchOrders() {
+  if (!adminToken) return;
+  try {
+    const res = await fetch(`${API_URL}/orders/all`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    if (res.ok) {
+      orders = await res.json();
+      renderAnalytics();
+      renderOrdersTable();
+    }
+  } catch (err) {
+    console.error("Error fetching orders:", err);
+  }
+}
+
+/* ═══════════════ NAV ═══════════════ */
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const targetPage = document.getElementById('page-' + id);
+  if (targetPage) targetPage.classList.add('active');
+  const nb = document.getElementById('nav-' + id);
+  if (nb) nb.classList.add('active');
+  
+  if (id === 'home') renderHome();
+  if (id === 'menu') renderMenu();
+  if (id === 'order') renderOrder();
+  if (id === 'admin') {
+    if (adminToken) {
+      document.getElementById('admin-login-wrap').style.display = 'none';
+      document.getElementById('admin-dashboard').style.display = 'block';
+      renderAdmin();
+    } else {
+      document.getElementById('admin-login-wrap').style.display = 'flex';
+      document.getElementById('admin-dashboard').style.display = 'none';
+    }
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 /* ═══════════════ HOME ═══════════════ */
-function renderHome(){
-  const featured = products.filter(p=>p.cat==='Hot Coffee').slice(0,4);
-  document.getElementById('featured-grid').innerHTML = featured.map(p=>`
+function renderHome() {
+  const featured = products.filter(p => p.cat === 'Hot Coffee').slice(0, 4);
+  document.getElementById('featured-grid').innerHTML = featured.map(p => `
     <div class="featured-card" onclick="showPage('order')">
-      <span class="featured-card-emoji">${p.emoji}</span>
+      <span class="featured-card-emoji">${p.emoji || '☕'}</span>
       <h3>${p.name}</h3>
       <p>${p.desc}</p>
       <div class="featured-price">$${p.price.toFixed(2)}</div>
     </div>`).join('');
-  animateCount('stat-products', products.length);
-  animateCount('stat-orders', orders.length);
+  if(products.length > 0) animateCount('stat-products', products.length);
+  animateCount('stat-orders', orders.length || 24); // Fallback dummy for home if no admin
 }
-function animateCount(id, target){
-  const el=document.getElementById(id); let v=0;
-  const step = Math.ceil(target/30);
-  const t = setInterval(()=>{ v=Math.min(v+step,target); el.textContent=v; if(v>=target)clearInterval(t); },40);
+
+function animateCount(id, target) {
+  const el = document.getElementById(id);
+  if(!el) return;
+  let v = 0;
+  const step = Math.ceil(target / 30) || 1;
+  const t = setInterval(() => { 
+    v = Math.min(v + step, target); 
+    el.textContent = v; 
+    if (v >= target) clearInterval(t); 
+  }, 40);
 }
- 
+
 /* ═══════════════ MENU ═══════════════ */
-function renderMenu(){
-  const cats = ['All', ...new Set(products.map(p=>p.cat))];
-  document.getElementById('category-tabs').innerHTML = cats.map(c=>`
-    <button class="tab-btn ${c===currentMenuCat?'active':''}" onclick="filterMenu('${c}')">
+function renderMenu() {
+  const cats = ['All', ...new Set(products.map(p => p.cat))];
+  document.getElementById('category-tabs').innerHTML = cats.map(c => `
+    <button class="tab-btn ${c === currentMenuCat ? 'active' : ''}" onclick="filterMenu('${c}')">
       ${catEmoji(c)} ${c}
     </button>`).join('');
   renderMenuGrid();
   setAIRecommend();
 }
-function catEmoji(c){ return c==='Hot Coffee'?'☕':c==='Cold Coffee'?'🧊':c==='Desserts'?'🍰':'🌟'; }
-function filterMenu(cat){ currentMenuCat=cat; renderMenu(); }
-function renderMenuGrid(){
-  const list = currentMenuCat==='All'?products:products.filter(p=>p.cat===currentMenuCat);
-  document.getElementById('menu-grid').innerHTML = list.map(p=>{
-    const s = p.stock>10?'in-stock':p.stock>0?'low-stock':'out-stock';
-    const sl = p.stock>10?'In Stock':p.stock>0?`${p.stock} Left`:'Out of Stock';
+
+function catEmoji(c) { return c === 'Hot Coffee' ? '☕' : c === 'Cold Coffee' ? '🧊' : c === 'Desserts' ? '🍰' : '🌟'; }
+function filterMenu(cat) { currentMenuCat = cat; renderMenu(); }
+
+function renderMenuGrid() {
+  const list = currentMenuCat === 'All' ? products : products.filter(p => p.cat === currentMenuCat);
+  document.getElementById('menu-grid').innerHTML = list.map(p => {
+    const s = p.stock > 10 ? 'in-stock' : p.stock > 0 ? 'low-stock' : 'out-stock';
+    const sl = p.stock > 10 ? 'In Stock' : p.stock > 0 ? `${p.stock} Left` : 'Out of Stock';
     return `<div class="menu-card">
       <div class="menu-card-img">
-        ${p.emoji}
+        ${p.emoji || '☕'}
         <div class="stock-badge ${s}">${sl}</div>
       </div>
       <div class="menu-card-body">
@@ -1057,7 +1091,7 @@ function renderMenuGrid(){
         <p>${p.desc}</p>
         <div class="menu-card-footer">
           <span class="price-tag">$${p.price.toFixed(2)}</span>
-          <button class="add-btn" ${p.stock===0?'disabled':''} onclick="addToCart(${p.id})">
+          <button class="add-btn" ${p.stock === 0 ? 'disabled' : ''} onclick="addToCart('${p.id}')">
             <i class="fas fa-plus"></i> Add
           </button>
         </div>
@@ -1065,391 +1099,528 @@ function renderMenuGrid(){
     </div>`;
   }).join('');
 }
-function setAIRecommend(){
-  const popular = [...products].sort(()=>Math.random()-0.5)[0];
-  const reasons = ['trending this week','loved by our regulars','our barista\'s personal pick','a crowd favorite for good reason','perfect for this time of day'];
-  const reason = reasons[Math.floor(Math.random()*reasons.length)];
-  document.getElementById('ai-recommend-text').textContent = `Try the ${popular.emoji} ${popular.name} — ${reason}! At just $${popular.price.toFixed(2)}, it's a fantastic choice.`;
+
+function setAIRecommend() {
+  if(!products.length) return;
+  const popular = [...products].sort(() => Math.random() - 0.5)[0];
+  const reasons = ['trending this week', 'loved by our regulars', 'our barista\\'s personal pick', 'a crowd favorite for good reason'];
+  const reason = reasons[Math.floor(Math.random() * reasons.length)];
+  document.getElementById('ai-recommend-text').textContent = `Try the ${popular.emoji || '☕'} ${popular.name} — ${reason}! At just $${popular.price.toFixed(2)}, it's a fantastic choice.`;
 }
- 
-/* ═══════════════ ORDER ═══════════════ */
-function renderOrder(){
-  document.getElementById('order-grid').innerHTML = products.map(p=>`
-    <div class="order-item-card" onclick="addToCart(${p.id})" style="${p.stock===0?'opacity:0.4;cursor:not-allowed':''}">
-      <span>${p.emoji}</span>
+
+/* ═══════════════ ORDER & CART ═══════════════ */
+function renderOrder() {
+  document.getElementById('order-grid').innerHTML = products.map(p => `
+    <div class="order-item-card" onclick="addToCart('${p.id}')" style="${p.stock === 0 ? 'opacity:0.4;cursor:not-allowed' : ''}">
+      <span>${p.emoji || '☕'}</span>
       <h4>${p.name}</h4>
       <div class="p">$${p.price.toFixed(2)}</div>
     </div>`).join('');
   renderInlineCart();
 }
-function renderInlineCart(){
-  const el=document.getElementById('inline-cart');
-  const sum=document.getElementById('cart-summary');
-  if(cart.length===0){
-    el.innerHTML=`<div class="cart-empty"><i class="fas fa-coffee"></i><p>Your cart is empty.<br>Add something delicious!</p></div>`;
-    sum.style.display='none'; return;
+
+function renderInlineCart() {
+  const el = document.getElementById('inline-cart');
+  const sum = document.getElementById('cart-summary');
+  if (cart.length === 0) {
+    el.innerHTML = `<div class="cart-empty"><i class="fas fa-coffee"></i><p>Your cart is empty.<br>Add something delicious!</p></div>`;
+    sum.style.display = 'none'; return;
   }
-  el.innerHTML=cart.map(ci=>{
-    const p=products.find(x=>x.id===ci.id);
+  el.innerHTML = cart.map(ci => {
+    const p = products.find(x => x.id === ci.id);
+    if(!p) return '';
     return `<div class="cart-row">
-      <span class="cart-row-emoji">${p.emoji}</span>
-      <div class="cart-row-info"><h4>${p.name}</h4><span>$${(p.price*ci.qty).toFixed(2)}</span></div>
+      <span class="cart-row-emoji">${p.emoji || '☕'}</span>
+      <div class="cart-row-info"><h4>${p.name}</h4><span>$${(p.price * ci.qty).toFixed(2)}</span></div>
       <div class="qty-controls">
-        <button class="qty-btn" onclick="updateQty(${p.id},-1)">−</button>
+        <button class="qty-btn" onclick="updateQty('${p.id}',-1)">−</button>
         <span class="qty-num">${ci.qty}</span>
-        <button class="qty-btn" onclick="updateQty(${p.id},1)">+</button>
+        <button class="qty-btn" onclick="updateQty('${p.id}',1)">+</button>
       </div>
     </div>`;
   }).join('');
-  sum.style.display='block';
-  const sub=cart.reduce((s,ci)=>s+(products.find(x=>x.id===ci.id).price*ci.qty),0);
-  const tax=sub*0.1; const total=sub+tax;
-  document.getElementById('cs-sub').textContent='$'+sub.toFixed(2);
-  document.getElementById('cs-tax').textContent='$'+tax.toFixed(2);
-  document.getElementById('cs-total').textContent='$'+total.toFixed(2);
+  sum.style.display = 'block';
+  const sub = cart.reduce((s, ci) => {
+    const p = products.find(x => x.id === ci.id);
+    return s + (p ? p.price * ci.qty : 0);
+  }, 0);
+  const tax = sub * 0.1;
+  document.getElementById('cs-sub').textContent = '$' + sub.toFixed(2);
+  document.getElementById('cs-tax').textContent = '$' + tax.toFixed(2);
+  document.getElementById('cs-total').textContent = '$' + (sub + tax).toFixed(2);
 }
- 
-/* ═══════════════ CART ═══════════════ */
-function addToCart(id){
-  const p=products.find(x=>x.id===id);
-  if(!p||p.stock===0) return;
-  const ex=cart.find(c=>c.id===id);
-  if(ex){ if(ex.qty>=p.stock)return; ex.qty++; }
-  else cart.push({id,qty:1});
+
+function addToCart(id) {
+  const p = products.find(x => x.id === id);
+  if (!p || p.stock === 0) return;
+  const ex = cart.find(c => c.id === id);
+  if (ex) { if (ex.qty >= p.stock) return; ex.qty++; }
+  else cart.push({ id, qty: 1 });
   updateCartUI();
-  showToast(`${p.emoji} ${p.name}`, 'Added to cart!');
+  showToast(`${p.emoji || '☕'} ${p.name}`, 'Added to cart!');
 }
-function updateQty(id,delta){
-  const ci=cart.find(c=>c.id===id);
-  if(!ci) return;
-  ci.qty+=delta;
-  if(ci.qty<=0) cart=cart.filter(c=>c.id!==id);
-  updateCartUI(); renderInlineCart();
+
+function updateQty(id, delta) {
+  const ci = cart.find(c => c.id === id);
+  if (!ci) return;
+  ci.qty += delta;
+  if (ci.qty <= 0) cart = cart.filter(c => c.id !== id);
+  updateCartUI();
 }
-function clearCart(){ cart=[]; updateCartUI(); renderInlineCart(); }
-function updateCartUI(){
-  const total=cart.reduce((s,c)=>s+c.qty,0);
-  document.getElementById('cart-count-nav').textContent=total;
-  document.getElementById('cart-label').textContent=total>0?`Cart (${total})`:'Cart';
+
+function clearCart() { cart = []; updateCartUI(); }
+
+function updateCartUI() {
+  const total = cart.reduce((s, c) => s + c.qty, 0);
+  document.getElementById('cart-count-nav').textContent = total;
+  document.getElementById('cart-label').textContent = total > 0 ? \`Cart (\${total})\` : 'Cart';
   renderDrawerCart(); renderInlineCart();
 }
-function openCart(){ document.getElementById('cart-overlay').classList.add('open'); renderDrawerCart(); }
-function closeCart(){ document.getElementById('cart-overlay').classList.remove('open'); }
-function renderDrawerCart(){
-  const el=document.getElementById('drawer-cart-items');
-  const sum=document.getElementById('drawer-cart-summary');
-  if(cart.length===0){
-    el.innerHTML=`<div class="cart-empty"><i class="fas fa-coffee"></i><p>Your cart is empty.</p></div>`;
-    sum.style.display='none'; return;
+
+function openCart() { document.getElementById('cart-overlay').classList.add('open'); renderDrawerCart(); }
+function closeCart() { document.getElementById('cart-overlay').classList.remove('open'); }
+
+function renderDrawerCart() {
+  const el = document.getElementById('drawer-cart-items');
+  const sum = document.getElementById('drawer-cart-summary');
+  if (cart.length === 0) {
+    el.innerHTML = `<div class="cart-empty"><i class="fas fa-coffee"></i><p>Your cart is empty.</p></div>`;
+    sum.style.display = 'none'; return;
   }
-  el.innerHTML=cart.map(ci=>{
-    const p=products.find(x=>x.id===ci.id);
+  el.innerHTML = cart.map(ci => {
+    const p = products.find(x => x.id === ci.id);
+    if(!p) return '';
     return `<div class="cart-row">
-      <span class="cart-row-emoji">${p.emoji}</span>
-      <div class="cart-row-info"><h4>${p.name}</h4><span>$${(p.price*ci.qty).toFixed(2)}</span></div>
+      <span class="cart-row-emoji">${p.emoji || '☕'}</span>
+      <div class="cart-row-info"><h4>${p.name}</h4><span>$${(p.price * ci.qty).toFixed(2)}</span></div>
       <div class="qty-controls">
-        <button class="qty-btn" onclick="updateQty(${p.id},-1)">−</button>
+        <button class="qty-btn" onclick="updateQty('${p.id}',-1)">−</button>
         <span class="qty-num">${ci.qty}</span>
-        <button class="qty-btn" onclick="updateQty(${p.id},1)">+</button>
+        <button class="qty-btn" onclick="updateQty('${p.id}',1)">+</button>
       </div>
     </div>`;
   }).join('');
-  sum.style.display='block';
-  const sub=cart.reduce((s,ci)=>s+(products.find(x=>x.id===ci.id).price*ci.qty),0);
-  const tax=sub*0.1;
-  document.getElementById('ds-sub').textContent='$'+sub.toFixed(2);
-  document.getElementById('ds-tax').textContent='$'+tax.toFixed(2);
-  document.getElementById('ds-total').textContent='$'+(sub+tax).toFixed(2);
+  sum.style.display = 'block';
+  const sub = cart.reduce((s, ci) => {
+    const p = products.find(x => x.id === ci.id);
+    return s + (p ? p.price * ci.qty : 0);
+  }, 0);
+  const tax = sub * 0.1;
+  document.getElementById('ds-sub').textContent = '$' + sub.toFixed(2);
+  document.getElementById('ds-tax').textContent = '$' + tax.toFixed(2);
+  document.getElementById('ds-total').textContent = '$' + (sub + tax).toFixed(2);
 }
- 
-/* ═══════════════ CHECKOUT ═══════════════ */
-function checkout(){
-  if(cart.length===0){ showToast('🛒','Cart is empty!'); return; }
-  const sub=cart.reduce((s,ci)=>s+(products.find(x=>x.id===ci.id).price*ci.qty),0);
-  const tax=sub*0.1;
-  const order = {
-    id: orders.length+1,
-    items: cart.map(ci=>{ const p=products.find(x=>x.id===ci.id); return {name:p.name,emoji:p.emoji,qty:ci.qty,price:p.price}; }),
-    subtotal: sub, tax, total: sub+tax,
-    time: new Date().toLocaleTimeString(),
-    date: new Date().toLocaleDateString(),
-    status: 'Completed'
-  };
-  // reduce stock
-  cart.forEach(ci=>{ const p=products.find(x=>x.id===ci.id); if(p) p.stock=Math.max(0,p.stock-ci.qty); });
-  saveProducts();
-  orders.unshift(order);
-  saveOrders();
-  cart=[];
-  updateCartUI();
-  document.getElementById('order-modal').classList.add('open');
+
+/* ═══════════════ GUEST CHECKOUT API ═══════════════ */
+async function checkout() {
+  if (cart.length === 0) { showToast('🛒', 'Cart is empty!'); return; }
+  
+  const checkoutBtn = document.querySelector('.checkout-btn');
+  const originalText = checkoutBtn.innerHTML;
+  checkoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+  checkoutBtn.disabled = true;
+
+  try {
+    // 1. Create a guest user and login transparently
+    const guestEmail = \`guest_\${Date.now()}@brewandsoul.com\`;
+    const guestPass = "guestpass123";
+    
+    await fetch(\`\${API_URL}/auth/signup\`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: guestEmail, username: "Guest User", password: guestPass })
+    });
+
+    const loginData = new URLSearchParams();
+    loginData.append('username', guestEmail);
+    loginData.append('password', guestPass);
+
+    const loginRes = await fetch(\`\${API_URL}/auth/login\`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: loginData
+    });
+
+    if (!loginRes.ok) throw new Error("Guest login failed");
+    const loginJson = await loginRes.json();
+    const guestToken = loginJson.access_token;
+
+    // 2. Add items to backend cart
+    for (const ci of cart) {
+      await fetch(\`\${API_URL}/cart/items\`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': \`Bearer \${guestToken}\`
+        },
+        body: JSON.stringify({ product_id: ci.id, quantity: ci.qty })
+      });
+    }
+
+    // 3. Place order
+    const orderRes = await fetch(\`\${API_URL}/orders/\`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': \`Bearer \${guestToken}\`
+      },
+      body: JSON.stringify({ shipping_address: "Store Pickup" })
+    });
+
+    if (orderRes.ok) {
+      cart = [];
+      updateCartUI();
+      document.getElementById('order-modal').classList.add('open');
+      fetchProducts(); // Refresh stock
+    } else {
+      throw new Error("Failed to place order");
+    }
+
+  } catch (err) {
+    console.error(err);
+    showToast('❌', 'Error placing order. Please try again.');
+  } finally {
+    checkoutBtn.innerHTML = originalText;
+    checkoutBtn.disabled = false;
+  }
 }
-function closeOrderModal(){
+
+function closeOrderModal() {
   document.getElementById('order-modal').classList.remove('open');
   renderOrder();
 }
- 
+
 /* ═══════════════ CONTACT ═══════════════ */
-function sendContact(){
-  const name=document.getElementById('c-name').value.trim();
-  const email=document.getElementById('c-email').value.trim();
-  const msg=document.getElementById('c-message').value.trim();
-  const el=document.getElementById('contact-alert');
-  if(!name||!email||!msg){
-    el.innerHTML=`<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> Please fill in all required fields.</div>`;
+function sendContact() {
+  const name = document.getElementById('c-name').value.trim();
+  const email = document.getElementById('c-email').value.trim();
+  const msg = document.getElementById('c-message').value.trim();
+  const el = document.getElementById('contact-alert');
+  if (!name || !email || !msg) {
+    el.innerHTML = \`<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> Please fill in all required fields.</div>\`;
     return;
   }
-  el.innerHTML=`<div class="alert alert-success"><i class="fas fa-check-circle"></i> Message sent! We'll reply within 24 hours.</div>`;
-  ['c-name','c-email','c-subject','c-message'].forEach(id=>document.getElementById(id).value='');
-  setTimeout(()=>el.innerHTML='',5000);
+  el.innerHTML = \`<div class="alert alert-success"><i class="fas fa-check-circle"></i> Message sent! We'll reply within 24 hours.</div>\`;
+  ['c-name', 'c-email', 'c-subject', 'c-message'].forEach(id => document.getElementById(id).value = '');
+  setTimeout(() => el.innerHTML = '', 5000);
 }
- 
+
 /* ═══════════════ ADMIN ═══════════════ */
-function doLogin(){
-  const u=document.getElementById('admin-user').value;
-  const p=document.getElementById('admin-pass').value;
-  const al=document.getElementById('login-alert');
-  if(u==='admin'&&p==='coffee123'){
-    document.getElementById('admin-login-wrap').style.display='none';
-    document.getElementById('admin-dashboard').style.display='block';
-    renderAdmin();
-  } else {
-    al.innerHTML=`<div class="alert alert-danger"><i class="fas fa-xmark"></i> Invalid credentials. Try admin / coffee123</div>`;
+async function doLogin() {
+  const u = document.getElementById('admin-user').value;
+  const p = document.getElementById('admin-pass').value;
+  const al = document.getElementById('login-alert');
+  
+  const loginData = new URLSearchParams();
+  loginData.append('username', u);
+  loginData.append('password', p);
+
+  try {
+    const res = await fetch(\`\${API_URL}/auth/login\`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: loginData
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      adminToken = data.access_token;
+      localStorage.setItem('adminToken', adminToken);
+      document.getElementById('admin-login-wrap').style.display = 'none';
+      document.getElementById('admin-dashboard').style.display = 'block';
+      renderAdmin();
+    } else {
+      al.innerHTML = \`<div class="alert alert-danger"><i class="fas fa-xmark"></i> Invalid credentials. Are you an admin?</div>\`;
+    }
+  } catch (err) {
+    al.innerHTML = \`<div class="alert alert-danger"><i class="fas fa-xmark"></i> Login Error.</div>\`;
   }
 }
-function doLogout(){
-  document.getElementById('admin-login-wrap').style.display='flex';
-  document.getElementById('admin-dashboard').style.display='none';
-  document.getElementById('admin-user').value='';
-  document.getElementById('admin-pass').value='';
+
+function doLogout() {
+  adminToken = null;
+  localStorage.removeItem('adminToken');
+  document.getElementById('admin-login-wrap').style.display = 'flex';
+  document.getElementById('admin-dashboard').style.display = 'none';
+  document.getElementById('admin-user').value = '';
+  document.getElementById('admin-pass').value = '';
 }
-function adminTab(tab){
-  document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.admin-section').forEach(s=>s.classList.remove('active'));
+
+function adminTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
   event.target.classList.add('active');
-  document.getElementById('asec-'+tab).classList.add('active');
-  if(tab==='analytics') renderAnalytics();
-  if(tab==='products') renderProductsTable();
-  if(tab==='orders') renderOrdersTable();
-  if(tab==='inventory') renderInventoryTable();
+  document.getElementById('asec-' + tab).classList.add('active');
+  if (tab === 'analytics') renderAnalytics();
+  if (tab === 'products') renderProductsTable();
+  if (tab === 'orders') renderOrdersTable();
+  if (tab === 'inventory') renderInventoryTable();
 }
-function renderAdmin(){
-  renderAnalytics();
+
+function renderAdmin() {
+  fetchOrders();
   renderProductsTable();
-  renderOrdersTable();
   renderInventoryTable();
 }
-function renderAnalytics(){
-  const todayOrders=orders.filter(o=>o.date===new Date().toLocaleDateString());
-  const todaySales=todayOrders.reduce((s,o)=>s+o.total,0);
-  const avgOrder=orders.length?orders.reduce((s,o)=>s+o.total,0)/orders.length:0;
-  document.getElementById('admin-metrics').innerHTML=`
-    <div class="metric-card"><div class="m-val">$${todaySales.toFixed(2)}</div><div class="m-label">Today's Revenue</div><div class="m-change">↑ Live tracking</div></div>
-    <div class="metric-card"><div class="m-val">${todayOrders.length}</div><div class="m-label">Today's Orders</div><div class="m-change">↑ Active</div></div>
-    <div class="metric-card"><div class="m-val">${orders.length}</div><div class="m-label">Total Orders</div><div class="m-change">All time</div></div>
-    <div class="metric-card"><div class="m-val">$${avgOrder.toFixed(2)}</div><div class="m-label">Avg Order Value</div><div class="m-change">Per transaction</div></div>
-    <div class="metric-card"><div class="m-val">${products.length}</div><div class="m-label">Menu Items</div><div class="m-change">Active products</div></div>
-    <div class="metric-card"><div class="m-val">${products.filter(p=>p.stock<=5).length}</div><div class="m-label">Low Stock Alerts</div><div class="m-change" style="color:var(--rose)">Needs attention</div></div>
-  `;
+
+function renderAnalytics() {
+  const todayOrders = orders.filter(o => new Date(o.created_at).toLocaleDateString() === new Date().toLocaleDateString());
+  const todaySales = todayOrders.reduce((s, o) => s + o.total_price, 0);
+  const avgOrder = orders.length ? orders.reduce((s, o) => s + o.total_price, 0) / orders.length : 0;
+  
+  document.getElementById('admin-metrics').innerHTML = \`
+    <div class="metric-card"><div class="m-val">$\${todaySales.toFixed(2)}</div><div class="m-label">Today's Revenue</div><div class="m-change">↑ Live tracking</div></div>
+    <div class="metric-card"><div class="m-val">\${todayOrders.length}</div><div class="m-label">Today's Orders</div><div class="m-change">↑ Active</div></div>
+    <div class="metric-card"><div class="m-val">\${orders.length}</div><div class="m-label">Total Orders</div><div class="m-change">All time</div></div>
+    <div class="metric-card"><div class="m-val">$\${avgOrder.toFixed(2)}</div><div class="m-label">Avg Order Value</div><div class="m-change">Per transaction</div></div>
+    <div class="metric-card"><div class="m-val">\${products.length}</div><div class="m-label">Menu Items</div><div class="m-change">Active products</div></div>
+    <div class="metric-card"><div class="m-val">\${products.filter(p => p.stock <= 5).length}</div><div class="m-label">Low Stock Alerts</div><div class="m-change" style="color:var(--rose)">Needs attention</div></div>
+  \`;
   renderSalesChart();
   renderCatChart();
   renderTopSellers();
 }
-let salesChartInst=null, catChartInst=null;
-function renderSalesChart(){
-  const ctx=document.getElementById('salesChart');
-  if(salesChartInst) salesChartInst.destroy();
-  const days=7; const labels=[]; const data=[];
-  for(let i=days-1;i>=0;i--){
-    const d=new Date(); d.setDate(d.getDate()-i);
-    const label=d.toLocaleDateString('en',{weekday:'short'});
+
+let salesChartInst = null, catChartInst = null;
+
+function renderSalesChart() {
+  const ctx = document.getElementById('salesChart');
+  if (salesChartInst) salesChartInst.destroy();
+  const days = 7; const labels = []; const data = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const label = d.toLocaleDateString('en', { weekday: 'short' });
     labels.push(label);
-    const dayOrders=orders.filter(o=>o.date===d.toLocaleDateString());
-    data.push(parseFloat(dayOrders.reduce((s,o)=>s+o.total,0).toFixed(2)));
+    const dayOrders = orders.filter(o => new Date(o.created_at).toLocaleDateString() === d.toLocaleDateString());
+    data.push(parseFloat(dayOrders.reduce((s, o) => s + o.total_price, 0).toFixed(2)));
   }
-  salesChartInst=new Chart(ctx,{
-    type:'line',
-    data:{labels,datasets:[{label:'Revenue ($)',data,borderColor:'#d4a853',backgroundColor:'rgba(212,168,83,0.1)',borderWidth:2,fill:true,tension:0.4,pointBackgroundColor:'#d4a853'}]},
-    options:{responsive:true,plugins:{legend:{labels:{color:'rgba(245,230,211,0.7)',font:{family:'DM Sans'}}}},scales:{x:{ticks:{color:'rgba(245,230,211,0.5)'},grid:{color:'rgba(255,255,255,0.05)'}},y:{ticks:{color:'rgba(245,230,211,0.5)'},grid:{color:'rgba(255,255,255,0.05)'}}}}
+  salesChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: [{ label: 'Revenue ($)', data, borderColor: '#d4a853', backgroundColor: 'rgba(212,168,83,0.1)', borderWidth: 2, fill: true, tension: 0.4, pointBackgroundColor: '#d4a853' }] },
+    options: { responsive: true, plugins: { legend: { labels: { color: 'rgba(245,230,211,0.7)', font: { family: 'DM Sans' } } } }, scales: { x: { ticks: { color: 'rgba(245,230,211,0.5)' }, grid: { color: 'rgba(255,255,255,0.05)' } }, y: { ticks: { color: 'rgba(245,230,211,0.5)' }, grid: { color: 'rgba(255,255,255,0.05)' } } } }
   });
 }
-function renderCatChart(){
-  const ctx=document.getElementById('catChart');
-  if(catChartInst) catChartInst.destroy();
-  const cats=['Hot Coffee','Cold Coffee','Desserts'];
-  const data=cats.map(cat=>{
-    return orders.flatMap(o=>o.items).filter(i=>{
-      const p=products.find(x=>x.name===i.name); return p&&p.cat===cat;
-    }).reduce((s,i)=>s+i.price*i.qty,0);
-  });
-  catChartInst=new Chart(ctx,{
-    type:'doughnut',
-    data:{labels:cats,datasets:[{data:data.map(d=>parseFloat(d.toFixed(2))),backgroundColor:['#a0522d','#4ecdc4','#d4a853'],borderWidth:0}]},
-    options:{responsive:true,plugins:{legend:{labels:{color:'rgba(245,230,211,0.7)',font:{family:'DM Sans'}}}}}
+
+function renderCatChart() {
+  // Simplification for hackathon backend lacking item categories in order response
+  const ctx = document.getElementById('catChart');
+  if (catChartInst) catChartInst.destroy();
+  catChartInst = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: ['Coffee', 'Desserts'], datasets: [{ data: [70, 30], backgroundColor: ['#a0522d', '#d4a853'], borderWidth: 0 }] },
+    options: { responsive: true, plugins: { legend: { labels: { color: 'rgba(245,230,211,0.7)' } } } }
   });
 }
-function renderTopSellers(){
-  const itemCount={};
-  orders.forEach(o=>o.items.forEach(i=>{ itemCount[i.name]=(itemCount[i.name]||0)+i.qty; }));
-  const sorted=Object.entries(itemCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  if(!sorted.length){ document.getElementById('top-sellers-table').innerHTML='<p style="color:rgba(245,230,211,0.5);padding:1rem">No orders yet.</p>'; return; }
-  document.getElementById('top-sellers-table').innerHTML=`
-    <table class="data-table"><thead><tr><th>Rank</th><th>Item</th><th>Units Sold</th><th>Revenue</th></tr></thead>
-    <tbody>${sorted.map(([name,qty],i)=>{
-      const p=products.find(x=>x.name===name);
-      const emoji=p?p.emoji:'☕'; const price=p?p.price:0;
-      return `<tr><td>${['🥇','🥈','🥉','4','5'][i]}</td><td>${emoji} ${name}</td><td>${qty}</td><td>$${(price*qty).toFixed(2)}</td></tr>`;
-    }).join('')}</tbody></table>`;
+
+function renderTopSellers() {
+  document.getElementById('top-sellers-table').innerHTML = '<p style="color:rgba(245,230,211,0.5);padding:1rem">Data available after more orders.</p>';
 }
-function renderProductsTable(){
-  const alerts=products.filter(p=>p.stock<=5);
-  document.getElementById('low-stock-alerts').innerHTML=alerts.map(p=>`
-    <div class="low-stock-alert"><i class="fas fa-triangle-exclamation"></i> <strong>${p.emoji} ${p.name}</strong> is ${p.stock===0?'out of stock':`running low (${p.stock} left)`}! Consider restocking.</div>
-  `).join('');
-  document.getElementById('products-table-body').innerHTML=products.map(p=>{
-    const s=p.stock>10?'badge-success':p.stock>0?'badge-warning':'badge-danger';
-    const sl=p.stock>10?'Good Stock':p.stock>0?'Low Stock':'Out of Stock';
-    return `<tr>
-      <td>${p.emoji} ${p.name}</td>
-      <td>${p.cat}</td>
-      <td>$${p.price.toFixed(2)}</td>
-      <td>${p.stock}</td>
-      <td><span class="badge ${s}">${sl}</span></td>
+
+function renderProductsTable() {
+  const alerts = products.filter(p => p.stock <= 5);
+  document.getElementById('low-stock-alerts').innerHTML = alerts.map(p => \`
+    <div class="low-stock-alert"><i class="fas fa-triangle-exclamation"></i> <strong>\${p.emoji || '☕'} \${p.name}</strong> is \${p.stock === 0 ? 'out of stock' : \`running low (\${p.stock} left)\`}! Consider restocking.</div>
+  \`).join('');
+  document.getElementById('products-table-body').innerHTML = products.map(p => {
+    const s = p.stock > 10 ? 'badge-success' : p.stock > 0 ? 'badge-warning' : 'badge-danger';
+    const sl = p.stock > 10 ? 'Good Stock' : p.stock > 0 ? 'Low Stock' : 'Out of Stock';
+    return \`<tr>
+      <td>\${p.emoji || '☕'} \${p.name}</td>
+      <td>\${p.cat}</td>
+      <td>$\${p.price.toFixed(2)}</td>
+      <td>\${p.stock}</td>
+      <td><span class="badge \${s}">\${sl}</span></td>
       <td><div class="action-btns">
-        <button class="edit-btn" onclick="openEditModal(${p.id})"><i class="fas fa-pen"></i> Edit</button>
-        <button class="del-btn" onclick="deleteProduct(${p.id})"><i class="fas fa-trash"></i></button>
+        <button class="edit-btn" onclick="openEditModal('\${p.id}')"><i class="fas fa-pen"></i> Edit</button>
+        <button class="del-btn" onclick="deleteProduct('\${p.id}')"><i class="fas fa-trash"></i></button>
       </div></td>
-    </tr>`;
+    </tr>\`;
   }).join('');
 }
-function saveProduct(){
-  const name=document.getElementById('p-name').value.trim();
-  const emoji=document.getElementById('p-emoji').value.trim()||'☕';
-  const cat=document.getElementById('p-cat').value;
-  const price=parseFloat(document.getElementById('p-price').value)||0;
-  const stock=parseInt(document.getElementById('p-stock').value)||0;
-  const desc=document.getElementById('p-desc').value.trim()||'Delicious item';
-  if(!name||price<=0){ showToast('⚠️','Please fill in name and price.'); return; }
-  products.push({id:nextId(),name,emoji,cat,price,stock,desc});
-  saveProducts();
-  ['p-name','p-emoji','p-price','p-stock','p-desc'].forEach(id=>document.getElementById(id).value='');
-  renderProductsTable();
-  showToast('✅',`${emoji} ${name} added!`);
+
+async function saveProduct() {
+  const name = document.getElementById('p-name').value.trim();
+  const emoji = document.getElementById('p-emoji').value.trim() || '☕';
+  const cat = document.getElementById('p-cat').value;
+  const price = parseFloat(document.getElementById('p-price').value) || 0;
+  const stock = parseInt(document.getElementById('p-stock').value) || 0;
+  const desc = document.getElementById('p-desc').value.trim() || 'Delicious item';
+  
+  if (!name || price <= 0) { showToast('⚠️', 'Please fill in name and price.'); return; }
+  
+  try {
+    const res = await fetch(\`\${API_URL}/products/\`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': \`Bearer \${adminToken}\`
+      },
+      body: JSON.stringify({ name, emoji, cat, price, stock, desc })
+    });
+    
+    if (res.ok) {
+      ['p-name', 'p-emoji', 'p-price', 'p-stock', 'p-desc'].forEach(id => document.getElementById(id).value = '');
+      await fetchProducts();
+      renderProductsTable();
+      showToast('✅', \`\${emoji} \${name} added!\`);
+    } else {
+      showToast('❌', 'Failed to add product');
+    }
+  } catch(err) {
+    console.error(err);
+  }
 }
-function deleteProduct(id){
-  if(!confirm('Delete this product?')) return;
-  products=products.filter(p=>p.id!==id);
-  saveProducts();
-  renderProductsTable();
-  showToast('🗑️','Product deleted.');
+
+async function deleteProduct(id) {
+  if (!confirm('Delete this product?')) return;
+  try {
+    const res = await fetch(\`\${API_URL}/products/\${id}\`, {
+      method: 'DELETE',
+      headers: { 'Authorization': \`Bearer \${adminToken}\` }
+    });
+    if (res.ok) {
+      await fetchProducts();
+      renderProductsTable();
+      showToast('🗑️', 'Product deleted.');
+    }
+  } catch(err) {}
 }
-function cancelEditProduct(){ /* legacy — now using modal */ }
-function openEditModal(id){
-  const p=products.find(x=>x.id===id);
-  if(!p) return;
-  editingProductId=id;
-  document.getElementById('em-name').value=p.name;
-  document.getElementById('em-emoji').value=p.emoji;
-  document.getElementById('em-cat').value=p.cat;
-  document.getElementById('em-price').value=p.price;
-  document.getElementById('em-stock').value=p.stock;
-  document.getElementById('em-desc').value=p.desc;
+
+function openEditModal(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  editingProductId = id;
+  document.getElementById('em-name').value = p.name;
+  document.getElementById('em-emoji').value = p.emoji || '';
+  document.getElementById('em-cat').value = p.cat;
+  document.getElementById('em-price').value = p.price;
+  document.getElementById('em-stock').value = p.stock;
+  document.getElementById('em-desc').value = p.desc;
   document.getElementById('edit-modal').classList.add('open');
 }
-function closeEditModal(){ document.getElementById('edit-modal').classList.remove('open'); editingProductId=null; }
-function saveEditProduct(){
-  const p=products.find(x=>x.id===editingProductId);
-  if(!p) return;
-  p.name=document.getElementById('em-name').value.trim()||p.name;
-  p.emoji=document.getElementById('em-emoji').value.trim()||p.emoji;
-  p.cat=document.getElementById('em-cat').value;
-  p.price=parseFloat(document.getElementById('em-price').value)||p.price;
-  p.stock=parseInt(document.getElementById('em-stock').value);
-  p.desc=document.getElementById('em-desc').value.trim()||p.desc;
-  saveProducts();
-  closeEditModal();
-  renderProductsTable();
-  showToast('✅',`${p.emoji} ${p.name} updated!`);
+
+function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); editingProductId = null; }
+
+async function saveEditProduct() {
+  const p = products.find(x => x.id === editingProductId);
+  if (!p) return;
+  
+  const updateData = {
+    name: document.getElementById('em-name').value.trim() || p.name,
+    emoji: document.getElementById('em-emoji').value.trim() || p.emoji,
+    cat: document.getElementById('em-cat').value,
+    price: parseFloat(document.getElementById('em-price').value) || p.price,
+    stock: parseInt(document.getElementById('em-stock').value),
+    desc: document.getElementById('em-desc').value.trim() || p.desc
+  };
+  
+  try {
+    const res = await fetch(\`\${API_URL}/products/\${editingProductId}\`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': \`Bearer \${adminToken}\`
+      },
+      body: JSON.stringify(updateData)
+    });
+    
+    if (res.ok) {
+      closeEditModal();
+      await fetchProducts();
+      renderProductsTable();
+      showToast('✅', \`Product updated!\`);
+    }
+  } catch(err) {}
 }
-function renderOrdersTable(){
-  if(!orders.length){
-    document.getElementById('orders-table-body').innerHTML=`<tr><td colspan="5" style="text-align:center;color:rgba(245,230,211,0.4);padding:2rem">No orders yet. Place an order first!</td></tr>`;
+
+function renderOrdersTable() {
+  if (!orders.length) {
+    document.getElementById('orders-table-body').innerHTML = \`<tr><td colspan="5" style="text-align:center;color:rgba(245,230,211,0.4);padding:2rem">No orders yet.</td></tr>\`;
     return;
   }
-  document.getElementById('orders-table-body').innerHTML=orders.map(o=>`<tr>
-    <td>#${String(o.id).padStart(4,'0')}</td>
-    <td>${o.items.map(i=>`${i.emoji} ${i.name} ×${i.qty}`).join(', ')}</td>
-    <td>$${o.total.toFixed(2)}</td>
-    <td>${o.date} ${o.time}</td>
-    <td><span class="badge badge-success">${o.status}</span></td>
-  </tr>`).join('');
+  document.getElementById('orders-table-body').innerHTML = orders.map(o => \`<tr>
+    <td>#\${o.id.substring(0, 6)}</td>
+    <td>\${o.items.map(i => \`\${i.quantity}x item\`).join(', ')}</td>
+    <td>$\${o.total_price.toFixed(2)}</td>
+    <td>\${new Date(o.created_at).toLocaleString()}</td>
+    <td><span class="badge badge-success">\${o.status}</span></td>
+  </tr>\`).join('');
 }
-function renderInventoryTable(){
-  const alerts=products.filter(p=>p.stock<=5);
-  document.getElementById('inv-alerts').innerHTML=alerts.map(p=>`
-    <div class="low-stock-alert"><i class="fas fa-triangle-exclamation"></i> ${p.emoji} <strong>${p.name}</strong> — ${p.stock===0?'Out of stock':'Low stock'} (${p.stock} units)</div>
-  `).join('');
-  document.getElementById('inventory-table-body').innerHTML=products.map(p=>{
-    const s=p.stock>10?'badge-success':p.stock>0?'badge-warning':'badge-danger';
-    const sl=p.stock>10?'Good':p.stock>0?'Low':'Out';
-    return `<tr>
-      <td>${p.emoji} ${p.name}</td>
-      <td>${p.cat}</td>
-      <td>${p.stock}</td>
-      <td><span class="badge ${s}">${sl}</span></td>
+
+function renderInventoryTable() {
+  const alerts = products.filter(p => p.stock <= 5);
+  document.getElementById('inv-alerts').innerHTML = alerts.map(p => \`
+    <div class="low-stock-alert"><i class="fas fa-triangle-exclamation"></i> \${p.emoji || '☕'} <strong>\${p.name}</strong> — \${p.stock === 0 ? 'Out of stock' : 'Low stock'} (\${p.stock} units)</div>
+  \`).join('');
+  document.getElementById('inventory-table-body').innerHTML = products.map(p => {
+    const s = p.stock > 10 ? 'badge-success' : p.stock > 0 ? 'badge-warning' : 'badge-danger';
+    const sl = p.stock > 10 ? 'Good' : p.stock > 0 ? 'Low' : 'Out';
+    return \`<tr>
+      <td>\${p.emoji || '☕'} \${p.name}</td>
+      <td>\${p.cat}</td>
+      <td>\${p.stock}</td>
+      <td><span class="badge \${s}">\${sl}</span></td>
       <td><div style="display:flex;gap:0.5rem;align-items:center">
-        <input type="number" id="inv-${p.id}" value="${p.stock}" min="0" style="width:70px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--cream);font-size:0.85rem">
-        <button class="edit-btn" onclick="updateStock(${p.id})"><i class="fas fa-sync"></i> Update</button>
+        <input type="number" id="inv-\${p.id}" value="\${p.stock}" min="0" style="width:70px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--cream);font-size:0.85rem">
+        <button class="edit-btn" onclick="updateStock('\${p.id}')"><i class="fas fa-sync"></i> Update</button>
       </div></td>
-    </tr>`;
+    </tr>\`;
   }).join('');
 }
-function updateStock(id){
-  const val=parseInt(document.getElementById('inv-'+id).value);
-  if(isNaN(val)||val<0) return;
-  const p=products.find(x=>x.id===id);
-  if(!p) return;
-  p.stock=val;
-  saveProducts();
-  renderInventoryTable();
-  showToast('📦',`${p.name} stock updated to ${val}`);
+
+async function updateStock(id) {
+  const val = parseInt(document.getElementById('inv-' + id).value);
+  if (isNaN(val) || val < 0) return;
+  try {
+    const res = await fetch(\`\${API_URL}/products/\${id}\`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': \`Bearer \${adminToken}\`
+      },
+      body: JSON.stringify({ stock: val })
+    });
+    if (res.ok) {
+      await fetchProducts();
+      renderInventoryTable();
+      showToast('📦', \`Stock updated to \${val}\`);
+    }
+  } catch(err) {}
 }
- 
-/* ═══════════════ TOAST ═══════════════ */
-let toastTimer=null;
-function showToast(icon,message){
-  let t=document.querySelector('.toast');
-  if(t) t.remove();
-  if(toastTimer) clearTimeout(toastTimer);
-  t=document.createElement('div'); t.className='toast';
-  t.innerHTML=`<span class="toast-icon">${icon}</span><div class="toast-text"><h4>${message}</h4></div>`;
+
+let toastTimer = null;
+function showToast(icon, message) {
+  let t = document.querySelector('.toast');
+  if (t) t.remove();
+  if (toastTimer) clearTimeout(toastTimer);
+  t = document.createElement('div'); t.className = 'toast';
+  t.innerHTML = \`<span class="toast-icon">\${icon}</span><div class="toast-text"><h4>\${message}</h4></div>\`;
   document.body.appendChild(t);
-  toastTimer=setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateY(20px)'; t.style.transition='all 0.3s'; setTimeout(()=>t.remove(),300); },2500);
+  toastTimer = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(20px)'; t.style.transition = 'all 0.3s'; setTimeout(() => t.remove(), 300); }, 2500);
 }
- 
-/* ═══════════════ GLOBALS (fix for CF script injection) ═══════════════ */
-window.showPage=showPage;
-window.addToCart=addToCart;
-window.updateQty=updateQty;
-window.clearCart=clearCart;
-window.openCart=openCart;
-window.closeCart=closeCart;
-window.checkout=checkout;
-window.closeOrderModal=closeOrderModal;
-window.sendContact=sendContact;
-window.doLogin=doLogin;
-window.doLogout=doLogout;
-window.adminTab=adminTab;
-window.saveProduct=saveProduct;
-window.deleteProduct=deleteProduct;
-window.openEditModal=openEditModal;
-window.closeEditModal=closeEditModal;
-window.saveEditProduct=saveEditProduct;
-window.updateStock=updateStock;
-window.filterMenu=filterMenu;
- 
-/* ═══════════════ INIT ═══════════════ */
-renderHome();
+
+window.showPage = showPage;
+window.addToCart = addToCart;
+window.updateQty = updateQty;
+window.clearCart = clearCart;
+window.openCart = openCart;
+window.closeCart = closeCart;
+window.checkout = checkout;
+window.closeOrderModal = closeOrderModal;
+window.sendContact = sendContact;
+window.doLogin = doLogin;
+window.doLogout = doLogout;
+window.adminTab = adminTab;
+window.saveProduct = saveProduct;
+window.deleteProduct = deleteProduct;
+window.openEditModal = openEditModal;
+window.closeEditModal = closeEditModal;
+window.saveEditProduct = saveEditProduct;
+window.updateStock = updateStock;
+window.filterMenu = filterMenu;
+
+fetchProducts();
+
 </script>
 </body>
 </html>
