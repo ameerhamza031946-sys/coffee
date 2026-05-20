@@ -30,6 +30,86 @@ app.add_middleware(
 async def startup_db_client():
     db.client = AsyncIOMotorClient(settings.MONGODB_URL)
     print("Connected to the MongoDB database!")
+    
+    # Database seeding
+    database = db.client.coffee_db
+    
+    # 1. Seed Admin user if not exists
+    admin_user = await database["users"].find_one({"email": "admin"})
+    if not admin_user:
+        from app.auth.security import get_password_hash
+        await database["users"].insert_one({
+            "email": "admin",
+            "username": "Admin",
+            "hashed_password": get_password_hash("coffee123"),
+            "role": "admin"
+        })
+        print("Admin user seeded.")
+        
+    # 2. Seed default products if products collection is empty
+    product_count = await database["products"].count_documents({})
+    if product_count == 0:
+        default_products = [
+            {
+                "name": "Classic Espresso",
+                "price": 3.50,
+                "desc": "Rich, bold, and full-bodied single-origin espresso.",
+                "emoji": "☕",
+                "cat": "Hot Coffee",
+                "stock": 50
+            },
+            {
+                "name": "Caramel Macchiato",
+                "price": 4.80,
+                "desc": "Steamed milk with vanilla-flavored syrup, marked with espresso and caramel.",
+                "emoji": "🍯",
+                "cat": "Hot Coffee",
+                "stock": 40
+            },
+            {
+                "name": "Artisan Latte",
+                "price": 4.50,
+                "desc": "A smooth blend of double espresso and velvety steamed milk.",
+                "emoji": "🥛",
+                "cat": "Hot Coffee",
+                "stock": 45
+            },
+            {
+                "name": "Nitro Cold Brew",
+                "price": 5.00,
+                "desc": "Slow-steeped cold brew infused with nitrogen for a rich, creamy head.",
+                "emoji": "🧊",
+                "cat": "Cold Coffee",
+                "stock": 30
+            },
+            {
+                "name": "Iced Caramel Latte",
+                "price": 4.90,
+                "desc": "Chilled espresso and milk poured over ice, sweetened with caramel syrup.",
+                "emoji": "🥤",
+                "cat": "Cold Coffee",
+                "stock": 35
+            },
+            {
+                "name": "Butter Croissant",
+                "price": 3.00,
+                "desc": "Flaky, golden-brown French pastry made with pure butter.",
+                "emoji": "🥐",
+                "cat": "Desserts",
+                "stock": 20
+            },
+            {
+                "name": "Decadent Fudge Cake",
+                "price": 5.50,
+                "desc": "Rich chocolate layer cake filled and frosted with dark chocolate fudge.",
+                "emoji": "🍰",
+                "cat": "Desserts",
+                "stock": 15
+            }
+        ]
+        await database["products"].insert_many(default_products)
+        print("Default products seeded.")
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
