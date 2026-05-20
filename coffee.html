@@ -1103,7 +1103,7 @@ function renderMenuGrid() {
 function setAIRecommend() {
   if(!products.length) return;
   const popular = [...products].sort(() => Math.random() - 0.5)[0];
-  const reasons = ['trending this week', 'loved by our regulars', 'our barista\\'s personal pick', 'a crowd favorite for good reason'];
+  const reasons = ['trending this week', 'loved by our regulars', "our barista's personal pick", 'a crowd favorite for good reason'];
   const reason = reasons[Math.floor(Math.random() * reasons.length)];
   document.getElementById('ai-recommend-text').textContent = `Try the ${popular.emoji || '☕'} ${popular.name} — ${reason}! At just $${popular.price.toFixed(2)}, it's a fantastic choice.`;
 }
@@ -1173,7 +1173,7 @@ function clearCart() { cart = []; updateCartUI(); }
 function updateCartUI() {
   const total = cart.reduce((s, c) => s + c.qty, 0);
   document.getElementById('cart-count-nav').textContent = total;
-  document.getElementById('cart-label').textContent = total > 0 ? \`Cart (\${total})\` : 'Cart';
+  document.getElementById('cart-label').textContent = total > 0 ? `Cart (${total})` : 'Cart';
   renderDrawerCart(); renderInlineCart();
 }
 
@@ -1222,10 +1222,10 @@ async function checkout() {
 
   try {
     // 1. Create a guest user and login transparently
-    const guestEmail = \`guest_\${Date.now()}@brewandsoul.com\`;
+    const guestEmail = `guest_${Date.now()}@brewandsoul.com`;
     const guestPass = "guestpass123";
     
-    await fetch(\`\${API_URL}/auth/signup\`, {
+    await fetch(`${API_URL}/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: guestEmail, username: "Guest User", password: guestPass })
@@ -1235,7 +1235,7 @@ async function checkout() {
     loginData.append('username', guestEmail);
     loginData.append('password', guestPass);
 
-    const loginRes = await fetch(\`\${API_URL}/auth/login\`, {
+    const loginRes = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: loginData
@@ -1247,22 +1247,22 @@ async function checkout() {
 
     // 2. Add items to backend cart
     for (const ci of cart) {
-      await fetch(\`\${API_URL}/cart/items\`, {
+      await fetch(`${API_URL}/cart/items`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': \`Bearer \${guestToken}\`
+          'Authorization': `Bearer ${guestToken}`
         },
         body: JSON.stringify({ product_id: ci.id, quantity: ci.qty })
       });
     }
 
     // 3. Place order
-    const orderRes = await fetch(\`\${API_URL}/orders/\`, {
+    const orderRes = await fetch(`${API_URL}/orders/`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Authorization': \`Bearer \${guestToken}\`
+        'Authorization': `Bearer ${guestToken}`
       },
       body: JSON.stringify({ shipping_address: "Store Pickup" })
     });
@@ -1297,10 +1297,10 @@ function sendContact() {
   const msg = document.getElementById('c-message').value.trim();
   const el = document.getElementById('contact-alert');
   if (!name || !email || !msg) {
-    el.innerHTML = \`<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> Please fill in all required fields.</div>\`;
+    el.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> Please fill in all required fields.</div>`;
     return;
   }
-  el.innerHTML = \`<div class="alert alert-success"><i class="fas fa-check-circle"></i> Message sent! We'll reply within 24 hours.</div>\`;
+  el.innerHTML = `<div class="alert alert-success"><i class="fas fa-check-circle"></i> Message sent! We'll reply within 24 hours.</div>`;
   ['c-name', 'c-email', 'c-subject', 'c-message'].forEach(id => document.getElementById(id).value = '');
   setTimeout(() => el.innerHTML = '', 5000);
 }
@@ -1316,7 +1316,7 @@ async function doLogin() {
   loginData.append('password', p);
 
   try {
-    const res = await fetch(\`\${API_URL}/auth/login\`, {
+    const res = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: loginData
@@ -1330,10 +1330,10 @@ async function doLogin() {
       document.getElementById('admin-dashboard').style.display = 'block';
       renderAdmin();
     } else {
-      al.innerHTML = \`<div class="alert alert-danger"><i class="fas fa-xmark"></i> Invalid credentials. Are you an admin?</div>\`;
+      al.innerHTML = `<div class="alert alert-danger"><i class="fas fa-xmark"></i> Invalid credentials. Are you an admin?</div>`;
     }
   } catch (err) {
-    al.innerHTML = \`<div class="alert alert-danger"><i class="fas fa-xmark"></i> Login Error.</div>\`;
+    al.innerHTML = `<div class="alert alert-danger"><i class="fas fa-xmark"></i> Login Error.</div>`;
   }
 }
 
@@ -1368,14 +1368,14 @@ function renderAnalytics() {
   const todaySales = todayOrders.reduce((s, o) => s + o.total_price, 0);
   const avgOrder = orders.length ? orders.reduce((s, o) => s + o.total_price, 0) / orders.length : 0;
   
-  document.getElementById('admin-metrics').innerHTML = \`
-    <div class="metric-card"><div class="m-val">$\${todaySales.toFixed(2)}</div><div class="m-label">Today's Revenue</div><div class="m-change">↑ Live tracking</div></div>
-    <div class="metric-card"><div class="m-val">\${todayOrders.length}</div><div class="m-label">Today's Orders</div><div class="m-change">↑ Active</div></div>
-    <div class="metric-card"><div class="m-val">\${orders.length}</div><div class="m-label">Total Orders</div><div class="m-change">All time</div></div>
-    <div class="metric-card"><div class="m-val">$\${avgOrder.toFixed(2)}</div><div class="m-label">Avg Order Value</div><div class="m-change">Per transaction</div></div>
-    <div class="metric-card"><div class="m-val">\${products.length}</div><div class="m-label">Menu Items</div><div class="m-change">Active products</div></div>
-    <div class="metric-card"><div class="m-val">\${products.filter(p => p.stock <= 5).length}</div><div class="m-label">Low Stock Alerts</div><div class="m-change" style="color:var(--rose)">Needs attention</div></div>
-  \`;
+  document.getElementById('admin-metrics').innerHTML = `
+    <div class="metric-card"><div class="m-val">$${todaySales.toFixed(2)}</div><div class="m-label">Today's Revenue</div><div class="m-change">↑ Live tracking</div></div>
+    <div class="metric-card"><div class="m-val">${todayOrders.length}</div><div class="m-label">Today's Orders</div><div class="m-change">↑ Active</div></div>
+    <div class="metric-card"><div class="m-val">${orders.length}</div><div class="m-label">Total Orders</div><div class="m-change">All time</div></div>
+    <div class="metric-card"><div class="m-val">$${avgOrder.toFixed(2)}</div><div class="m-label">Avg Order Value</div><div class="m-change">Per transaction</div></div>
+    <div class="metric-card"><div class="m-val">${products.length}</div><div class="m-label">Menu Items</div><div class="m-change">Active products</div></div>
+    <div class="metric-card"><div class="m-val">${products.filter(p => p.stock <= 5).length}</div><div class="m-label">Low Stock Alerts</div><div class="m-change" style="color:var(--rose)">Needs attention</div></div>
+  `;
   renderSalesChart();
   renderCatChart();
   renderTopSellers();
@@ -1418,23 +1418,23 @@ function renderTopSellers() {
 
 function renderProductsTable() {
   const alerts = products.filter(p => p.stock <= 5);
-  document.getElementById('low-stock-alerts').innerHTML = alerts.map(p => \`
-    <div class="low-stock-alert"><i class="fas fa-triangle-exclamation"></i> <strong>\${p.emoji || '☕'} \${p.name}</strong> is \${p.stock === 0 ? 'out of stock' : \`running low (\${p.stock} left)\`}! Consider restocking.</div>
-  \`).join('');
+  document.getElementById('low-stock-alerts').innerHTML = alerts.map(p => `
+    <div class="low-stock-alert"><i class="fas fa-triangle-exclamation"></i> <strong>${p.emoji || '☕'} ${p.name}</strong> is ${p.stock === 0 ? 'out of stock' : `running low (${p.stock} left)`}! Consider restocking.</div>
+  `).join('');
   document.getElementById('products-table-body').innerHTML = products.map(p => {
     const s = p.stock > 10 ? 'badge-success' : p.stock > 0 ? 'badge-warning' : 'badge-danger';
     const sl = p.stock > 10 ? 'Good Stock' : p.stock > 0 ? 'Low Stock' : 'Out of Stock';
-    return \`<tr>
-      <td>\${p.emoji || '☕'} \${p.name}</td>
-      <td>\${p.cat}</td>
-      <td>$\${p.price.toFixed(2)}</td>
-      <td>\${p.stock}</td>
-      <td><span class="badge \${s}">\${sl}</span></td>
+    return `<tr>
+      <td>${p.emoji || '☕'} ${p.name}</td>
+      <td>${p.cat}</td>
+      <td>$${p.price.toFixed(2)}</td>
+      <td>${p.stock}</td>
+      <td><span class="badge ${s}">${sl}</span></td>
       <td><div class="action-btns">
-        <button class="edit-btn" onclick="openEditModal('\${p.id}')"><i class="fas fa-pen"></i> Edit</button>
-        <button class="del-btn" onclick="deleteProduct('\${p.id}')"><i class="fas fa-trash"></i></button>
+        <button class="edit-btn" onclick="openEditModal('${p.id}')"><i class="fas fa-pen"></i> Edit</button>
+        <button class="del-btn" onclick="deleteProduct('${p.id}')"><i class="fas fa-trash"></i></button>
       </div></td>
-    </tr>\`;
+    </tr>`;
   }).join('');
 }
 
@@ -1449,11 +1449,11 @@ async function saveProduct() {
   if (!name || price <= 0) { showToast('⚠️', 'Please fill in name and price.'); return; }
   
   try {
-    const res = await fetch(\`\${API_URL}/products/\`, {
+    const res = await fetch(`${API_URL}/products/`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Authorization': \`Bearer \${adminToken}\`
+        'Authorization': `Bearer ${adminToken}`
       },
       body: JSON.stringify({ name, emoji, cat, price, stock, desc })
     });
@@ -1462,7 +1462,7 @@ async function saveProduct() {
       ['p-name', 'p-emoji', 'p-price', 'p-stock', 'p-desc'].forEach(id => document.getElementById(id).value = '');
       await fetchProducts();
       renderProductsTable();
-      showToast('✅', \`\${emoji} \${name} added!\`);
+      showToast('✅', `${emoji} ${name} added!`);
     } else {
       showToast('❌', 'Failed to add product');
     }
@@ -1474,9 +1474,9 @@ async function saveProduct() {
 async function deleteProduct(id) {
   if (!confirm('Delete this product?')) return;
   try {
-    const res = await fetch(\`\${API_URL}/products/\${id}\`, {
+    const res = await fetch(`${API_URL}/products/${id}`, {
       method: 'DELETE',
-      headers: { 'Authorization': \`Bearer \${adminToken}\` }
+      headers: { 'Authorization': `Bearer ${adminToken}` }
     });
     if (res.ok) {
       await fetchProducts();
@@ -1515,11 +1515,11 @@ async function saveEditProduct() {
   };
   
   try {
-    const res = await fetch(\`\${API_URL}/products/\${editingProductId}\`, {
+    const res = await fetch(`${API_URL}/products/${editingProductId}`, {
       method: 'PUT',
       headers: { 
         'Content-Type': 'application/json',
-        'Authorization': \`Bearer \${adminToken}\`
+        'Authorization': `Bearer ${adminToken}`
       },
       body: JSON.stringify(updateData)
     });
@@ -1528,43 +1528,43 @@ async function saveEditProduct() {
       closeEditModal();
       await fetchProducts();
       renderProductsTable();
-      showToast('✅', \`Product updated!\`);
+      showToast('✅', `Product updated!`);
     }
   } catch(err) {}
 }
 
 function renderOrdersTable() {
   if (!orders.length) {
-    document.getElementById('orders-table-body').innerHTML = \`<tr><td colspan="5" style="text-align:center;color:rgba(245,230,211,0.4);padding:2rem">No orders yet.</td></tr>\`;
+    document.getElementById('orders-table-body').innerHTML = `<tr><td colspan="5" style="text-align:center;color:rgba(245,230,211,0.4);padding:2rem">No orders yet.</td></tr>`;
     return;
   }
-  document.getElementById('orders-table-body').innerHTML = orders.map(o => \`<tr>
-    <td>#\${o.id.substring(0, 6)}</td>
-    <td>\${o.items.map(i => \`\${i.quantity}x item\`).join(', ')}</td>
-    <td>$\${o.total_price.toFixed(2)}</td>
-    <td>\${new Date(o.created_at).toLocaleString()}</td>
-    <td><span class="badge badge-success">\${o.status}</span></td>
-  </tr>\`).join('');
+  document.getElementById('orders-table-body').innerHTML = orders.map(o => `<tr>
+    <td>#${o.id.substring(0, 6)}</td>
+    <td>${o.items.map(i => `${i.quantity}x item`).join(', ')}</td>
+    <td>$${o.total_price.toFixed(2)}</td>
+    <td>${new Date(o.created_at).toLocaleString()}</td>
+    <td><span class="badge badge-success">${o.status}</span></td>
+  </tr>`).join('');
 }
 
 function renderInventoryTable() {
   const alerts = products.filter(p => p.stock <= 5);
-  document.getElementById('inv-alerts').innerHTML = alerts.map(p => \`
-    <div class="low-stock-alert"><i class="fas fa-triangle-exclamation"></i> \${p.emoji || '☕'} <strong>\${p.name}</strong> — \${p.stock === 0 ? 'Out of stock' : 'Low stock'} (\${p.stock} units)</div>
-  \`).join('');
+  document.getElementById('inv-alerts').innerHTML = alerts.map(p => `
+    <div class="low-stock-alert"><i class="fas fa-triangle-exclamation"></i> ${p.emoji || '☕'} <strong>${p.name}</strong> — ${p.stock === 0 ? 'Out of stock' : 'Low stock'} (${p.stock} units)</div>
+  `).join('');
   document.getElementById('inventory-table-body').innerHTML = products.map(p => {
     const s = p.stock > 10 ? 'badge-success' : p.stock > 0 ? 'badge-warning' : 'badge-danger';
     const sl = p.stock > 10 ? 'Good' : p.stock > 0 ? 'Low' : 'Out';
-    return \`<tr>
-      <td>\${p.emoji || '☕'} \${p.name}</td>
-      <td>\${p.cat}</td>
-      <td>\${p.stock}</td>
-      <td><span class="badge \${s}">\${sl}</span></td>
+    return `<tr>
+      <td>${p.emoji || '☕'} ${p.name}</td>
+      <td>${p.cat}</td>
+      <td>${p.stock}</td>
+      <td><span class="badge ${s}">${sl}</span></td>
       <td><div style="display:flex;gap:0.5rem;align-items:center">
-        <input type="number" id="inv-\${p.id}" value="\${p.stock}" min="0" style="width:70px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--cream);font-size:0.85rem">
-        <button class="edit-btn" onclick="updateStock('\${p.id}')"><i class="fas fa-sync"></i> Update</button>
+        <input type="number" id="inv-${p.id}" value="${p.stock}" min="0" style="width:70px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--cream);font-size:0.85rem">
+        <button class="edit-btn" onclick="updateStock('${p.id}')"><i class="fas fa-sync"></i> Update</button>
       </div></td>
-    </tr>\`;
+    </tr>`;
   }).join('');
 }
 
@@ -1572,18 +1572,18 @@ async function updateStock(id) {
   const val = parseInt(document.getElementById('inv-' + id).value);
   if (isNaN(val) || val < 0) return;
   try {
-    const res = await fetch(\`\${API_URL}/products/\${id}\`, {
+    const res = await fetch(`${API_URL}/products/${id}`, {
       method: 'PUT',
       headers: { 
         'Content-Type': 'application/json',
-        'Authorization': \`Bearer \${adminToken}\`
+        'Authorization': `Bearer ${adminToken}`
       },
       body: JSON.stringify({ stock: val })
     });
     if (res.ok) {
       await fetchProducts();
       renderInventoryTable();
-      showToast('📦', \`Stock updated to \${val}\`);
+      showToast('📦', `Stock updated to ${val}`);
     }
   } catch(err) {}
 }
@@ -1594,7 +1594,7 @@ function showToast(icon, message) {
   if (t) t.remove();
   if (toastTimer) clearTimeout(toastTimer);
   t = document.createElement('div'); t.className = 'toast';
-  t.innerHTML = \`<span class="toast-icon">\${icon}</span><div class="toast-text"><h4>\${message}</h4></div>\`;
+  t.innerHTML = `<span class="toast-icon">${icon}</span><div class="toast-text"><h4>${message}</h4></div>`;
   document.body.appendChild(t);
   toastTimer = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(20px)'; t.style.transition = 'all 0.3s'; setTimeout(() => t.remove(), 300); }, 2500);
 }
